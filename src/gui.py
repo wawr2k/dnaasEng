@@ -172,20 +172,6 @@ class ConfigPanelApp(tk.Toplevel):
         row_counter += 1
         ttk.Separator(self.main_frame, orient='horizontal').grid(row=row_counter, column=0, columnspan=3, sticky='ew', pady=10)
 
-        frame_row3 = ttk.Frame(self.main_frame)
-        frame_row3.grid(row=row_counter, column=0, sticky="ew", pady=5)  # 第二行框架
-        self.step_forward_check = ttk.Checkbutton(
-            frame_row3,
-            text="持续往前走",
-            variable=self.step_forward_var,
-            command=self.save_config,
-        )
-        self.step_forward_check.grid(row=0, column=0,  sticky=tk.W, pady=5)
-
-        # 分割线.
-        row_counter += 1
-        ttk.Separator(self.main_frame, orient='horizontal').grid(row=row_counter, column=0, columnspan=3, sticky='ew', pady=10)
-
         frame_row4 = ttk.Frame(self.main_frame)
         frame_row4.grid(row=row_counter, column=0, sticky="ew", pady=5)  # 第二行框架
         self.cast_E_check = ttk.Checkbutton(
@@ -281,7 +267,6 @@ class ConfigPanelApp(tk.Toplevel):
     def set_controls_state(self, state):
         self.button_and_entry = [
             self.adb_path_change_button,
-            self.step_forward_check,
             self.adb_port_entry,
             self.button_save_adb_port,
             self.cast_E_check

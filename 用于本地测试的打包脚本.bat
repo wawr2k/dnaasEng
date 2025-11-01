@@ -55,6 +55,25 @@ if errorlevel 1 (
     exit /b 1
 )
 
+copy CHANGES_LOG.md dist\dnaas\
+
+if errorlevel 1 (
+    echo Failed to copy CHANGES_LOG.md
+    pause
+    exit /b 1
+)
+
+:: 将dist/dnaas打包成zip文件
+powershell -Command "Compress-Archive -Path 'dist\dnaas' -DestinationPath 'dist\dnaas_%timestamp%.zip' -Force"
+
+if errorlevel 1 (
+    echo Failed to create zip file
+    pause
+    exit /b 1
+)
+
+echo Successfully created dist\dnaas_%timestamp%.zip
+
 echo Script finished.
 pause
 endlocal 

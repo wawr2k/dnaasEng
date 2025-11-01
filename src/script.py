@@ -21,11 +21,10 @@ CONFIG_VAR_LIST = [
             ["farm_target_text_var",        tk.StringVar,  "_FARMTARGET_TEXT",           list(DUNGEON_TARGETS.keys())[0] if DUNGEON_TARGETS else ""],
             ["farm_target_var",             tk.StringVar,  "_FARMTARGET",                ""],
             ["emu_path_var",                tk.StringVar,  "_EMUPATH",                   ""],
-            ["adb_port_var",                tk.StringVar,  "_ADBPORT",                   5555],
+            ["adb_port_var",                tk.StringVar,  "_ADBPORT",                   16384],
             ["last_version",                tk.StringVar,  "LAST_VERSION",               ""],
             ["latest_version",              tk.StringVar,  "LATEST_VERSION",             None],
 
-            ["step_forward_var",            tk.BooleanVar, "_KEEP_STEP_FORWARD",         True],
             ["cast_e_var",                  tk.BooleanVar, "_CAST_E_ABILITY",            True]
             ]
 
@@ -650,6 +649,11 @@ def Factory():
         for _ in range(time):
             Press([1518,631])
             Sleep(1)
+
+    def QuitDungeon():
+        FindCoordsOrElseExecuteFallbackAndWait("放弃挑战",[50,40],2)
+        Press(FindCoordsOrElseExecuteFallbackAndWait("确定","放弃挑战",2))
+        Sleep(2)
     ##################################################################
     def QuestFarm():
         nonlocal setting # 强制自动战斗 等等.
@@ -664,6 +668,7 @@ def Factory():
                 while 1:
                     scn = ScreenShot()
                     if Press(CheckIf(scn, "开始挑战")):
+                        Sleep(10)
                         continue
                     if Press(CheckIf(scn, "再次进行")) or Press(CheckIf(scn, "继续挑战")):
                         counter+=1
@@ -676,8 +681,7 @@ def Factory():
                         continue
                     if time.time() - start_time > 600:
                         logger.info("时间太久了, 重来吧")
-                        FindCoordsOrElseExecuteFallbackAndWait("放弃挑战",[50,40],2)
-                        Press(FindCoordsOrElseExecuteFallbackAndWait("确定","放弃挑战",2))
+                        QuitDungeon()
                         start_time = time.time()
                     
                     if not reset_char_position:
@@ -701,6 +705,7 @@ def Factory():
                 while 1:
                     scn = ScreenShot()
                     if Press(CheckIf(scn, "开始挑战")):
+                        Sleep(10)
                         continue
                     if pos:=(CheckIf(scn, "继续挑战")):
                         if in_game_counter != 2:
@@ -719,22 +724,102 @@ def Factory():
                         total_time = total_time + cost_time
                         logger.info(f"第{counter}次完成.\n本次用时{cost_time:.2f}秒.\n累计用时{total_time:.2f}秒.", extra={"summary": True})
                         start_time = time.time()
-                        Sleep(10)
                         reset_char_position = False
                         continue
                     
-                    if not reset_char_position:
-                        ResetPosition()
-                        Dodge(3)
-                        GoRight(3000)
-                        GoForward(16000)
-                        GoLeft(2500)
-                        GoForward(45000)
-                        reset_char_position = True
+                    if CheckIf(scn,'indungeon',[[0,0,125,125]]):
+                        if (not reset_char_position):
+                            ResetPosition()
+                            Sleep(3)
 
-                    if setting._CAST_E_ABILITY:
-                        Press([1086,797])
-                        Sleep(4.5)
+                            if CheckIf(ScreenShot(), "保护目标", [[1091,353,81,64]]):
+                                QuitDungeon()
+                                counter -= 1
+                                continue
+
+                            Dodge(3)
+                            GoRight(3000)
+                            GoForward(16000)
+                            GoLeft(2500)
+                            GoForward(13000)
+                            
+                            if CheckIf(ScreenShot(), "保护目标", [[502,262,96,96]]):
+                                GoLeft(4000)
+                                GoForward(30000)
+                                reset_char_position = True
+                                continue
+                            if CheckIf(ScreenShot(), "保护目标", [[746,176,98,81]]):
+                                GoForward(32000)
+                                reset_char_position = True
+                                continue
+
+                            QuitDungeon()
+                            counter -= 1
+                            continue
+
+                        if setting._CAST_E_ABILITY:
+                            Press([1086,797])
+                            Sleep(4.5)
+                    
+                    if setting._FORCESTOPING.is_set():
+                        break
+            case "65mod":
+                counter = 0
+                in_game_counter = 0
+                start_time = time.time()
+                total_time = 0
+                reset_char_position = False
+                logger.info("开始任务!")
+                   
+                while 1:
+                    scn = ScreenShot()
+                    if Press(CheckIf(scn, "开始挑战")):
+                        Sleep(10)
+                        continue
+                    if pos:=(CheckIf(scn, "继续挑战")):
+                        if in_game_counter != 2:
+                            logger.info("已完成一小局")
+                            Press(pos)
+                            in_game_counter +=1
+                        else:
+                            in_game_counter = 0
+                            logger.info("已完成三小局, 撤离")
+                            Press(CheckIf(scn, "撤离"))
+                            Sleep(2)
+                            continue
+                    if Press(CheckIf(scn, "再次进行")):
+                        counter+=1
+                        cost_time = time.time()-start_time
+                        total_time = total_time + cost_time
+                        logger.info(f"第{counter}次完成.\n本次用时{cost_time:.2f}秒.\n累计用时{total_time:.2f}秒.", extra={"summary": True})
+                        start_time = time.time()
+                        reset_char_position = False
+                        continue
+                    
+                    if time.time() - start_time > 3000:
+                        logger.info("时间太久了, 重来吧")
+                        QuitDungeon()
+                        start_time = time.time()
+                    
+                    if CheckIf(scn,'indungeon',[[0,0,125,125]]):
+                        if (not reset_char_position):
+                            Sleep(2)
+                            GoForward(9000)
+                            GoLeft(9000)
+                            GoForward(2100)
+                            GoLeft(22500)
+                            DeviceShell(f"input swipe 800 450 450 380")
+                            Press([520,785])
+                            Sleep(0.5)
+                            Press([1359,478])
+                            Sleep(0.5)
+                            Press([1359,478])
+                            GoForward(2000)
+                            reset_char_position = True
+
+                        if setting._CAST_E_ABILITY:
+                            Press([1086,797])
+                            Sleep(4.5)
                     
                     if setting._FORCESTOPING.is_set():
                         break

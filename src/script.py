@@ -14,8 +14,8 @@ import numpy as np
 import copy
 import math
 
-
 DUNGEON_TARGETS = BuildQuestReflection()
+DECLARATION = f"\n本脚本是免费发布的. 如果你是付费购买的, 请向平台申请退款."
 
 ####################################
 CONFIG_VAR_LIST = [
@@ -799,7 +799,7 @@ def Factory():
 
                     total_time = total_time + cost_time
                     logger.info(f"本轮用时{cost_time:.2f}秒.\n累计用时{total_time:.2f}秒.")
-                    logger.info(f"第{counter}次完成.\n累计用时{total_time:.2f}秒.", extra={"summary": True})
+                    logger.info(f"第{counter}次完成.\n累计用时{total_time:.2f}秒. {declaration}", extra={"summary": True})
                     start_time = time.time()
 
                     continue

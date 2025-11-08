@@ -70,11 +70,6 @@ class ConfigPanelApp(tk.Toplevel):
         for attr_name, var_type, var_config_name, _ in CONFIG_VAR_LIST:
             if issubclass(var_type, tk.Variable):
                 self.config[var_config_name] = getattr(self, attr_name).get()
-
-        if self.farm_target_text_var.get() in DUNGEON_TARGETS:
-            self.farm_target_var.set(DUNGEON_TARGETS[self.farm_target_text_var.get()])
-        else:
-            self.farm_target_var.set(None)
         
         SaveConfigToFile(self.config)
 
@@ -163,13 +158,32 @@ class ConfigPanelApp(tk.Toplevel):
         ttk.Separator(self.main_frame, orient='horizontal').grid(row=row_counter, column=0, columnspan=3, sticky='ew', pady=10)
 
         # 地下城目标
+        def UpdateLvlCombo(*args):
+            self.farm_target_lvl_combo['value'] = list(DUNGEON_TARGETS[self.farm_type_var.get()].keys())
+            if self.farm_target_lvl_combo['values'] and (self.farm_lvl_var.get() not in self.farm_target_lvl_combo['values']):
+                self.farm_lvl_var.set(self.farm_target_lvl_combo['values'][0])
         row_counter += 1
         frame_row = ttk.Frame(self.main_frame)
         frame_row.grid(row=row_counter, column=0, sticky="ew", pady=5)  # 第二行框架
         ttk.Label(frame_row, text="地下城目标:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        self.farm_target_combo = ttk.Combobox(frame_row, textvariable=self.farm_target_text_var, values=list(DUNGEON_TARGETS.keys()), state="readonly")
+        self.farm_target_combo = ttk.Combobox(frame_row, textvariable=self.farm_type_var, values=list(DUNGEON_TARGETS.keys()), state="readonly")
         self.farm_target_combo.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=5)
         self.farm_target_combo.bind("<<ComboboxSelected>>", lambda e: self.save_config())
+        self.farm_type_var.trace('w', UpdateLvlCombo)
+
+        row_counter += 1
+        frame_row = ttk.Frame(self.main_frame)
+        frame_row.grid(row=row_counter, column=0, sticky="ew", pady=5)  # 第二行框架
+        ttk.Label(frame_row, text="等级:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.farm_target_lvl_combo = ttk.Combobox(frame_row, textvariable=self.farm_lvl_var, state="readonly", width=7)
+        self.farm_target_lvl_combo.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=5)
+        self.farm_target_lvl_combo.bind("<<ComboboxSelected>>", lambda e: self.save_config())
+        UpdateLvlCombo()
+        ttk.Label(frame_row, text="额外参数:").grid(row=0, column=2, sticky=tk.W, pady=5)
+        self.farm_target_extra_combo = ttk.Combobox(frame_row, textvariable=self.farm_extra_var,values=DUNGEON_EXTRA, state="readonly", width=7)
+        self.farm_target_extra_combo.grid(row=0, column=3, sticky=(tk.W, tk.E), pady=5)
+        self.farm_target_extra_combo.bind("<<ComboboxSelected>>", lambda e: self.save_config())
+
 
         # 分割线.
         row_counter += 1
@@ -419,7 +433,10 @@ class ConfigPanelApp(tk.Toplevel):
             self.cast_Q_check,
             self.cast_Q_intervel_entry,
             self.button_save_cast_Q_intervel,
-            self.cast_E_print_check
+            self.cast_E_print_check,
+            self.farm_target_extra_combo,
+            self.farm_target_combo,
+            self.farm_target_lvl_combo
             ]
 
         if state == tk.DISABLED:

@@ -1,7 +1,7 @@
 from gui import *
 import argparse
 
-__version__ = '1.0.20' 
+__version__ = '1.0.21' 
 OWNER = "arnold2957"
 REPO = "dnaas"
 
@@ -64,7 +64,7 @@ class AppController(tk.Tk):
                     Farm = Factory()
                     self.quest_threading = Thread(target=Farm,args=(self.quest_setting,))
                     self.quest_threading.start()
-                    logger.info(f'启动任务\"{self.quest_setting._FARMTARGET_TEXT}\"...')
+                    logger.info(f'启动任务\"{self.quest_setting._FARM_TYPE+self.quest_setting._FARM_LVL}(额外设定={self.quest_setting._FARM_EXTRA})\"...')
 
                 case 'stop_quest':
                     logger.info('停止任务...')

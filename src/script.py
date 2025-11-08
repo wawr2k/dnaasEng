@@ -14,13 +14,22 @@ import numpy as np
 import copy
 import math
 
-DUNGEON_TARGETS = BuildQuestReflection()
+DUNGEON_TARGETS = {
+    "角色经验": {"50":5},
+    "角色材料": {"10":1, "30":3, "60":6},
+    "武器突破": {"60":5, "70":6},
+    "皎皎币":   {"60":3,"70":4},
+    "夜航手册": {"40":3,"55":5, "60":6,"65":7,"70":8},
+    "半自动(开核桃)": {"驱离":0, "原地挂机":0}
+    }
+DUNGEON_EXTRA = ["无关心","1","2","3","4","5","6","7","8","9"]
 
 ####################################
 CONFIG_VAR_LIST = [
             #var_name,                      type,          config_name,                  default_value
-            ["farm_target_text_var",        tk.StringVar,  "_FARMTARGET_TEXT",           list(DUNGEON_TARGETS.keys())[0] if DUNGEON_TARGETS else ""],
-            ["farm_target_var",             tk.StringVar,  "_FARMTARGET",                ""],
+            ["farm_type_var",               tk.StringVar,  "_FARM_TYPE",                 "皎皎币"],
+            ["farm_lvl_var",                tk.StringVar,  "_FARM_LVL",                  "60"],
+            ["farm_extra_var",              tk.StringVar,  "_FARM_EXTRA",                "无关心"],
             ["emu_path_var",                tk.StringVar,  "_EMUPATH",                   ""],
             ["adb_port_var",                tk.StringVar,  "_ADBPORT",                   16384],
             ["last_version",                tk.StringVar,  "LAST_VERSION",               ""],
@@ -77,8 +86,6 @@ class RuntimeContext:
 class FarmQuest:
     _DUNGWAITTIMEOUT = 0
     _TARGETINFOLIST = None
-    _EOT = None
-    _preEOTcheck = None
     _SPECIALDIALOGOPTION = None
     _SPECIALFORCESTOPINGSYMBOL = None
     _SPELLSEQUENCE = None
@@ -275,6 +282,68 @@ def CheckRestartConnectADB(setting: FarmConfig):
     
     return None
 ##################################################################
+def CalculRoIAverRGB(screenshot, roi=None):
+    if roi is None or len(roi) == 0:
+        if len(screenshot.shape) == 3:  # 彩色图像
+            avg_b = np.mean(screenshot[:, :, 0])
+            avg_g = np.mean(screenshot[:, :, 1])
+            avg_r = np.mean(screenshot[:, :, 2])
+            return (avg_r, avg_g, avg_b)
+        else:  # 灰度图像
+            avg = np.mean(screenshot)
+            return (avg, avg, avg)
+    
+    img_height, img_width = screenshot.shape[:2]
+    roi_copy = roi.copy()
+
+    roi1_rect = roi_copy.pop(0)
+    x1, y1, w1, h1 = roi1_rect
+
+    # 计算第一个ROI区域在图像范围内的边界
+    roi1_y_start = max(0, y1)
+    roi1_y_end = min(img_height, y1 + h1)
+    roi1_x_start = max(0, x1)
+    roi1_x_end = min(img_width, x1 + w1)
+
+    # 创建基础掩码（只包含第一个ROI区域）
+    final_mask = np.zeros((img_height, img_width), dtype=bool)
+    if roi1_x_start < roi1_x_end and roi1_y_start < roi1_y_end:
+        final_mask[roi1_y_start:roi1_y_end, roi1_x_start:roi1_x_end] = True
+
+    # 从第一个ROI区域中排除后续的ROI区域
+    for roi2_rect in roi_copy:
+        x2, y2, w2, h2 = roi2_rect
+
+        # 计算排除区域在图像范围内的边界
+        roi2_y_start = max(0, y2)
+        roi2_y_end = min(img_height, y2 + h2)
+        roi2_x_start = max(0, x2)
+        roi2_x_end = min(img_width, x2 + w2)
+
+        # 创建排除区域的掩码
+        if roi2_x_start < roi2_x_end and roi2_y_start < roi2_y_end:
+            exclude_mask = np.zeros((img_height, img_width), dtype=bool)
+            exclude_mask[roi2_y_start:roi2_y_end, roi2_x_start:roi2_x_end] = True
+            
+            # 从基础掩码中排除这个区域
+            final_mask = final_mask & ~exclude_mask
+
+    # 检查是否有有效的净区域
+    if not np.any(final_mask):
+        return (0, 0, 0)
+    
+    # 计算净区域的平均RGB值
+    if len(screenshot.shape) == 3:  # 彩色图像
+        roi_pixels = screenshot[final_mask]
+        avg_b = np.mean(roi_pixels[:, 0])
+        avg_g = np.mean(roi_pixels[:, 1])
+        avg_r = np.mean(roi_pixels[:, 2])
+        return (avg_r, avg_g, avg_b)
+    else:  # 灰度图像
+        roi_pixels = screenshot[final_mask]
+        avg = np.mean(roi_pixels)
+        return (avg, avg, avg)
+
 def CutRoI(screenshot,roi):
     if roi is None:
         return screenshot
@@ -465,7 +534,7 @@ def Factory():
             return None
         if max_val<=0.9:
             logger.debug(f"警告: {shortPathOfTarget}的匹配程度超过了{threshold*100:.0f}%但不足90%")
-
+        logger.debug(f"{shortPathOfTarget}匹配成功!")
         pos=[max_loc[0] + template.shape[1]//2, max_loc[1] + template.shape[0]//2]
         return pos
     def CheckIf_MultiRect(screenImage, shortPathOfTarget):
@@ -644,13 +713,18 @@ def Factory():
                 continue
     ##################################################################
     def ResetPosition():
-        FindCoordsOrElseExecuteFallbackAndWait(["放弃挑战","放弃挑战_云"],[50,40],1)
-        FindCoordsOrElseExecuteFallbackAndWait("其他设置","设置",1)
-        FindCoordsOrElseExecuteFallbackAndWait(["复位角色","复位角色_云"],"其他设置",1)
-        FindCoordsOrElseExecuteFallbackAndWait("确定",["复位角色","复位角色_云"],1)
-        while pos:=CheckIf(ScreenShot(),'确定'):
-            Press(pos)
-        Sleep(2)
+        logger.info("开始复位.")
+        try:
+            FindCoordsOrElseExecuteFallbackAndWait(["放弃挑战","放弃挑战_云"],[50,40],1)
+            FindCoordsOrElseExecuteFallbackAndWait("其他设置","设置",1)
+            FindCoordsOrElseExecuteFallbackAndWait(["复位角色","复位角色_云"],"其他设置",1)
+            FindCoordsOrElseExecuteFallbackAndWait("确定",["复位角色","复位角色_云"],1)
+            while pos:=CheckIf(ScreenShot(),'确定'):
+                Press(pos)
+            Sleep(2)
+            return True
+        except:
+            return False
     def GoLeft(time = 1000):
         SPLIT = 3000
         if time <= SPLIT:
@@ -692,11 +766,14 @@ def Factory():
 
     def QuitDungeon():
         try:
-            FindCoordsOrElseExecuteFallbackAndWait(["放弃挑战","放弃挑战_云","再次进行"],[50,40],2)
+            FindCoordsOrElseExecuteFallbackAndWait(["任务图标","放弃挑战","放弃挑战_云","再次进行"],[50,40],2)
             scn = ScreenShot()
+            if CheckIf(scn,"任务图标"):
+                logger.info("奇怪, 怎么已经退出了.")
+                return
             if CheckIf(scn,"放弃挑战") or CheckIf(scn,"放弃挑战_云"):
                 Press(FindCoordsOrElseExecuteFallbackAndWait("确定",["放弃挑战","放弃挑战_云"],2))
-                Sleep(2)
+                Sleep(10)
                 return 
             if CheckIf(scn, "再次进行"):
                 return
@@ -741,9 +818,7 @@ def Factory():
             return True
         else:
             return False
-        
 
-    
     def QuickUnlock():
         Sleep(1)
         scn = ScreenShot()
@@ -754,9 +829,269 @@ def Factory():
                 Sleep(2)
                 return True
         return False
+    
+    def InverseDistanceWeighting(r,g,b):
+        d1 = (r-64)**2+(g-40)**2+(b-18)**2
+        d2 = (r-67)**2+(g-79)**2+(b-58)**2
+        d3 = (r-175)**2+(g-207)**2+(b-183)**2
+        d4 = (r-113)**2+(g-157)**2+(b-126)**2
+        Sa = 1/d1 + 1/d2
+        Sb = 1/d3 + 1/d4
+        k = Sa/(Sa+Sb)
+        logger.info(f"定位结果: {k:.2f}.\n如果你发现这个数字接近0.5, 请向作者报告你的画面设置和是否是云游戏.")
+        if k > 0.5:
+            return "A"
+        else:
+            return "B"
     ##################################################################
+    def BasicQuestSelect():
+        if setting._FARM_TYPE != "夜航手册":
+            FindCoordsOrElseExecuteFallbackAndWait("开始挑战",[setting._FARM_TYPE,"input swipe 1400 400 1300 400"],2)
+            roi = [50,182+57*(DUNGEON_TARGETS[setting._FARM_TYPE][setting._FARM_LVL]-1),275,57]
+            while 1:
+                scn = ScreenShot()
+                if CheckIf(scn,"开始挑战"):
+                    if Press(CheckIf(scn,"等级未选中",[roi])):
+                        break
+                else:
+                    return # 错误. 退出.
+            if setting._FARM_TYPE == "角色材料":
+                if (setting._FARM_EXTRA == "无关心") or (setting._FARM_EXTRA == 2):
+                    FindCoordsOrElseExecuteFallbackAndWait("无尽火",[1187,778],1)
+                else:
+                    logger.info("其他材料本还不支持噢.")
+        else:
+            FindCoordsOrElseExecuteFallbackAndWait("前往","夜航手册",1)
+            lvl = DUNGEON_TARGETS[setting._FARM_TYPE][setting._FARM_LVL]
+            Press([562,210+(lvl-1)*84])
+            if setting._FARM_EXTRA == "无关心":
+                farm_target = random.sample([1,2,3,4,5])
+            else:
+                farm_target = int(setting._FARM_EXTRA)
+            if farm_target <= 5:
+                FindCoordsOrElseExecuteFallbackAndWait("确认选择",[1450,228+(farm_target-1)*110],1)
+            else:
+                if lvl != 7:
+                    DeviceShell(f"input swipe 800 555 800 222")
+                    Sleep(2)
+                    FindCoordsOrElseExecuteFallbackAndWait("确认选择",[1450,228+(5-1)*110],1)
+                else:
+                    DeviceShell(f"input swipe 800 555 800 222")
+                    Sleep(2)
+                    DeviceShell(f"input swipe 800 555 800 222")
+                    Sleep(2)
+                    FindCoordsOrElseExecuteFallbackAndWait("确认选择",[1450,228+(farm_target-4-1)*110],1)
 
-    def SelectQuest(EOT,resetMove, DEFAULTWAVE):
+
+    def resetMove():
+        match setting._FARM_TYPE+setting._FARM_LVL:
+            case "夜航手册40" | "夜航手册55" | "夜航手册60" | "夜航手册70" | "半自动(开核桃)驱离":
+                GoForward(15000)
+                GoBack(1000)
+                GoLeft(100)
+                return True
+            case "皎皎币60":
+                if not ResetPosition():
+                    return False
+                Sleep(3)
+
+                if CheckIf(ScreenShot(), "保护目标", [[1091,353,81,64]]):
+                    # GoForward(1500)
+                    # DeviceShell(f"input swipe 800 450 1136 380")
+                    # GoForward(1500)
+                    # Press([520,785])
+                    # Sleep(0.5)
+                    # Press([1359,478])
+                    # GoForward(20000)
+
+                    # GoLeft(6000)
+                    # GoForward(25000)
+
+                    # reset_char_position = True
+                    # continue
+                    None
+                if CheckIf(ScreenShot(), "保护目标", [[793,174,74,86]]):
+                    Dodge(3)
+                    GoRight(3000)
+                    GoForward(16000)
+                    GoLeft(2500)
+                    GoForward(13000)
+                    
+                    if CheckIf(ScreenShot(), "保护目标", [[502,262,96,96]]):
+                        GoLeft(4000)
+                        GoForward(30000)
+                        return True
+                    if CheckIf(ScreenShot(), "保护目标", [[746,176,98,81]]):
+                        GoForward(32000)
+                        return True
+                return False
+            case "皎皎币70":
+                Sleep(2)
+                if not ResetPosition():
+                    return False
+                scn = ScreenShot()
+                if CheckIf(scn,"保护目标", [[784,254,107,112]]):
+                    GoForward(14000)
+                    GoRight(1200)
+                    GoForward(8000)
+                    GoRight(1200)
+                    GoForward(7000)
+                    if not ResetPosition():
+                        return False
+                    return True
+                if CheckIf(scn,"保护目标", [[377,366,222,197]]):
+                    GoBack(1000)
+                    GoLeft(6000)
+                    GoForward(11300)
+                    GoLeft(6000)
+                    DoubleJump()
+                    GoLeft(3000)
+                    GoLeft(14000)
+                    GoLeft(6000)
+                    GoBack(500)
+                    GoLeft(3000)
+                    GoRight(200)
+                    return True
+                return False
+            case "夜航手册65":
+                Sleep(2)
+                GoBack(1000)
+                GoLeft(6000)
+                GoForward(11300)
+                GoLeft(6000)
+                DoubleJump()
+                GoLeft(3000)
+                GoLeft(14000)
+                if not ResetPosition():
+                    return False
+                return True
+            case "角色经验50":
+                if CheckIf(ScreenShot(), "保护目标", [[693,212,109,110]]):
+                    GoForward(9600)
+                    GoLeft(400)
+                    if QuickUnlock():
+                        GoLeft(3450)
+                        GoForward(3000)
+                        GoRight(2000)
+                        GoForward(3000)
+                        GoRight(1150)
+                        GoForward(2000)
+                        if not ResetPosition():
+                            return False
+                        Sleep(5)
+                        GoBack(5000)
+                        Sleep(5)
+                        GoBack(5000)
+                        if not ResetPosition():
+                            return False
+                        Sleep(3)
+                        GoLeft(4000)
+                        DoubleJump()
+                        GoLeft(1000)
+                        DoubleJump()
+                        GoLeft(1000)
+                        GoRight(3000)
+                        GoLeft(200)
+                        return True
+                return False
+            case "角色材料10":
+                if not ResetPosition():
+                    return False
+                Sleep(3)
+                if CheckIf(ScreenShot(), "保护目标", [[394,297,169,149]]):
+                    GoLeft(2800)
+                    if QuickUnlock():
+                        GoRight(800)
+                        return True
+                return False
+            case "角色材料30" | "角色材料60":
+                if not ResetPosition():
+                    return False
+                GoLeft(9150)
+                GoBack(1000)
+                Press([1359,478])
+                Sleep(0.5)
+                Press([1359,478])
+                GoBack(500)
+                Sleep(0.5)
+                Press([1359,478])
+                Sleep(0.5)
+                Press([1359,478])
+                GoBack(500)
+                if QuickUnlock():
+                    GoLeft(4700)
+                    GoBack(2000)
+                    GoForward(200)
+                    return True
+                return False
+            case "武器突破60" | "武器突破70":
+                GoRight(round((2+(56-32)/60)*1000))
+                GoForward(round((42-25+34/60)*1000))
+                GoLeft(round((2+22/60)*1000))
+                GoForward(round((53-45+24/60)*1000))
+                GoLeft(round((2+52/60)*1000))
+                GoForward(round((9)*1000))
+                GoRight(round((5+18/60)*1000))
+                GoForward(round((1+20/60)*1000))
+                GoLeft(round((4+14/60)*1000))
+                GoForward(6000)
+                if pos:=CheckIf(ScreenShot(),"保护目标",[[395,61,769,381]]):
+                    DeviceShell(f"input swipe 800 450 {round((pos[0]-800)/3.5+800)} 450")
+                    GoForward(round((3.5+16/60)*1000))
+                    DoubleJump()
+                    GoForward(1000)
+                    unlock = False
+                    for _ in range(5):
+                        if QuickUnlock():
+                            unlock = True
+                            break
+                        else:
+                            GoBack(50)
+                    if unlock:
+                        if not ResetPosition():
+                            return False
+                        GoLeft(round((4-2/60)*1000))
+                        for i in range(setting._RESTART_INTERVAL):
+                            if CheckIf(ScreenShot(), "可前往撤离点"):
+                                break
+                            else:
+                                CastESpell()
+                                CastQSpell()
+                                Sleep(1)
+                            if i == setting._RESTART_INTERVAL - 1:
+                                return False 
+                        for _ in range(10):
+                            scn = ScreenShot()
+                            if not CheckIfInDungeon(scn):
+                                return False
+                            if not ResetPosition():
+                                return False
+                            Sleep(3)
+                            k = InverseDistanceWeighting(*CalculRoIAverRGB(ScreenShot(),[[0,535,544,899-535]]))
+                            if k == 'A':
+                                GoRight(round((3-2/60)*1000))
+                                GoForward(round((2+30/60)*1000))
+                                GoRight(round((4-56/60)*1000))
+                                GoBack(round((4-4/60)*1000))
+                                GoRight(round((4-12/60)*1000))
+                                GoForward(round((9+44/60)*1000))
+                                GoRight(round((9-14/60)*1000))
+                                continue
+                            if k == 'B':
+                                GoForward(round((1+40/60)*1000))
+                                GoRight(round((14-36/60)*1000))
+                                GoForward(round((6+24/60)*1000))
+                                GoLeft(round((4-24/60)*1000))
+                                GoForward(round((8-10/60)*1000))
+                                GoForward(round((20-4/60)*1000))
+                                if CheckIf(ScreenShot(),"再次进行"):
+                                    return True
+                                continue
+                return False
+            case _ :
+                logger.info("没有设定开场移动. 原地挂机.")
+                return True
+    def QuestFarm():
         NL_in_game_counter = 1
         NL_start_time = time.time()
         NL_total_time = 0
@@ -764,6 +1099,17 @@ def Factory():
         NL_game_counter = 0
         if setting._ROUND_CUSTOM_ACTIVE:
             DEFAULTWAVE = setting._ROUND_CUSTOM_TIME
+        else:
+            match setting._FARM_TYPE+setting._FARM_LVL:
+                case "皎皎币60":
+                    DEFAULTWAVE = 3
+                case "角色材料10":
+                    DEFAULTWAVE = 15
+                case "角色材料30" | "角色材料60":
+                    DEFAULTWAVE = 10
+                case _:
+                    DEFAULTWAVE = 1
+            logger.info(f"{setting._FARM_TYPE+setting._FARM_LVL}的默认局内轮次数为{DEFAULTWAVE}.")
     
         ########################################
         handlers = []
@@ -795,16 +1141,15 @@ def Factory():
             return False
         @register
         def handle_farm(scn):
-            if Press(CheckIf(WrapImage(scn,1.7,0,0),"委托",[[50,190,79,85]])) or Press(CheckIf(WrapImage(scn,1.7,0,0),"委托",[[7,182,105,97]])):
-                logger.info("委托.")
-                Sleep(1)
+            if CheckIf(scn,"入门指南"):
+                FindCoordsOrElseExecuteFallbackAndWait("委托",[89,231],1)
                 return True
             return False
         @register
         def handle_dungeon_select(scn):
-            if CheckIf(scn,"勘察无尽") and (EOT!=None):
+            if CheckIf(scn,"勘察无尽"):
                 logger.info("关卡选择.")
-                EOT()
+                BasicQuestSelect()
                 return True
             return False
         @register
@@ -887,7 +1232,7 @@ def Factory():
                     NL_game_prepare = False
                     NL_total_time = NL_total_time + cost_time
                     logger.info(f"本轮用时{cost_time:.2f}秒.\n累计用时{NL_total_time:.2f}秒.")
-                    logger.info(f"第{NL_game_counter}次{setting._FARMTARGET_TEXT}完成.\n累计用时{NL_total_time:.2f}秒.", extra={"summary": True})
+                    logger.info(f"第{NL_game_counter}次{setting._FARM_TYPE+setting._FARM_LVL}完成.\n累计用时{NL_total_time:.2f}秒.", extra={"summary": True})
                     NL_start_time = time.time()
                 return True
             return False
@@ -898,19 +1243,19 @@ def Factory():
             nonlocal NL_game_counter
             if CheckIfInDungeon(scn):
                 if not NL_game_prepare:
-                    if (resetMove==None) or resetMove():
+                    if resetMove():
                         NL_game_prepare = True
                     else:
                         logger.info("尚未支持的地图, 重新进本.")
                         NL_game_counter -= 1
                         QuitDungeon()
-                        return False
+                        return True
             
                 if time.time() - NL_start_time > setting._RESTART_INTERVAL:
                     logger.info("时间太久了, 重来吧")
                     NL_start_time = time.time()
                     QuitDungeon()
-                    return False
+                    return True
                 CastESpell()
                 CastQSpell()
                 return True
@@ -971,268 +1316,7 @@ def Factory():
                     pass
                 check_counter = 0
                 continue
-    ##################################################################
-    def BasicQuestSelect(target, lvl, fire = False):
-        FindCoordsOrElseExecuteFallbackAndWait("开始挑战",[target,"input swipe 1400 400 1000 400"],1)
-        roi = [50,182+57*(lvl-1),275,57]
-        while Press(CheckIf(ScreenShot(),"等级未选中",[roi])):
-            1
-        if fire:
-            FindCoordsOrElseExecuteFallbackAndWait("无尽火",[1187,778],1)
-    def QuestFarm():
-        nonlocal setting # 强制自动战斗 等等.
-        nonlocal runtimeContext
-        match setting._FARMTARGET:
-            case "驱离":
-                def resetMove():
-                    GoForward(15000)
-                    GoBack(1000)
-                    GoLeft(100)
-                    return True
-                SelectQuest(None,resetMove,1)
-            case "半自动血清/守卫":
-                SelectQuest(None,None,5)
-            case "60皎皎币":
-                def EOT():
-                    BasicQuestSelect("皎皎币",3,False)
-                def resetMove():
-                    ResetPosition()
-                    Sleep(3)
 
-                    if CheckIf(ScreenShot(), "保护目标", [[1091,353,81,64]]):
-                        # GoForward(1500)
-                        # DeviceShell(f"input swipe 800 450 1136 380")
-                        # GoForward(1500)
-                        # Press([520,785])
-                        # Sleep(0.5)
-                        # Press([1359,478])
-                        # GoForward(20000)
-
-                        # GoLeft(6000)
-                        # GoForward(25000)
-
-                        # reset_char_position = True
-                        # continue
-                        None
-                    if CheckIf(ScreenShot(), "保护目标", [[793,174,74,86]]):
-                        Dodge(3)
-                        GoRight(3000)
-                        GoForward(16000)
-                        GoLeft(2500)
-                        GoForward(13000)
-                        
-                        if CheckIf(ScreenShot(), "保护目标", [[502,262,96,96]]):
-                            GoLeft(4000)
-                            GoForward(30000)
-                            return True
-                        if CheckIf(ScreenShot(), "保护目标", [[746,176,98,81]]):
-                            GoForward(32000)
-                            return True
-                        
-                    return False
-                
-                SelectQuest(EOT,resetMove,3)
-            case "70皎皎币":
-                def EOT():
-                    BasicQuestSelect("皎皎币",4,False)
-                def resetMove():
-                    Sleep(2)
-                    ResetPosition()
-                    scn = ScreenShot()
-                    if CheckIf(scn,"保护目标", [[784,254,107,112]]):
-                        GoForward(14000)
-                        GoRight(1200)
-                        GoForward(8000)
-                        GoRight(1200)
-                        GoForward(7000)
-                        ResetPosition()
-                        return True
-                    if CheckIf(scn,"保护目标", [[377,366,222,197]]):
-                        GoBack(1000)
-                        GoLeft(6000)
-                        GoForward(11300)
-                        GoLeft(6000)
-                        DoubleJump()
-                        GoLeft(3000)
-                        GoLeft(14000)
-                        GoLeft(6000)
-                        GoBack(500)
-                        GoLeft(3000)
-                        GoRight(200)
-                        return True
-
-                    return False
-
-                SelectQuest(EOT,resetMove,1)  
-            case "65mod":
-                def resetMove():
-                    Sleep(2)
-                    GoBack(1000)
-                    GoLeft(6000)
-                    GoForward(11300)
-                    GoLeft(6000)
-                    DoubleJump()
-                    GoLeft(3000)
-                    GoLeft(14000)
-                    ResetPosition()
-                    return True
-
-                SelectQuest(None,resetMove,1)   
-            case "50经验":
-                def EOT():
-                    BasicQuestSelect("避险",5,False)
-                def resetMove():
-                    if CheckIf(ScreenShot(), "保护目标", [[693,212,109,110]]):
-                        GoForward(9600)
-                        GoLeft(400)
-                        if QuickUnlock():
-                            GoLeft(3450)
-                            GoForward(3000)
-                            GoRight(2000)
-                            GoForward(3000)
-                            GoRight(1150)
-                            GoForward(2000)
-                            ResetPosition()
-                            Sleep(5)
-                            GoBack(5000)
-                            Sleep(5)
-                            GoBack(5000)
-                            ResetPosition()
-                            Sleep(3)
-                            GoLeft(4000)
-                            DoubleJump()
-                            GoLeft(1000)
-                            DoubleJump()
-                            GoLeft(1000)
-                            GoRight(3000)
-                            GoLeft(200)
-                            return True
-                    return False
-                SelectQuest(EOT,resetMove,1)
-            case "10火":
-                def EOT():
-                    BasicQuestSelect("探险无尽",1,True)
-                def resetMove():
-                    ResetPosition()
-                    Sleep(3)
-
-                    if CheckIf(ScreenShot(), "保护目标", [[394,297,169,149]]):
-                        GoLeft(2800)
-                        if QuickUnlock():
-                            GoRight(800)
-                            return True
-                            
-                    return False
-                
-                SelectQuest(EOT,resetMove,15)
-            case "30火":
-                def EOT():
-                    BasicQuestSelect("探险无尽",3,True)
-                def resetMove():
-                    ResetPosition()
-                    GoLeft(9150)
-                    GoBack(1000)
-                    Press([1359,478])
-                    Sleep(0.5)
-                    Press([1359,478])
-                    GoBack(500)
-                    Sleep(0.5)
-                    Press([1359,478])
-                    Sleep(0.5)
-                    Press([1359,478])
-                    GoBack(500)
-                    if QuickUnlock():
-                        GoLeft(4700)
-                        GoBack(2000)
-                        GoForward(200)
-                        return True
-                    return False
-                SelectQuest(EOT,resetMove, 10)
-            case "60火":
-                def EOT():
-                    BasicQuestSelect("探险无尽",6,True)
-                def resetMove():
-                    ResetPosition()
-                    GoLeft(9150)
-                    GoBack(1000)
-                    Press([1359,478])
-                    Sleep(0.5)
-                    Press([1359,478])
-                    GoBack(500)
-                    Sleep(0.5)
-                    Press([1359,478])
-                    Sleep(0.5)
-                    Press([1359,478])
-                    GoBack(500)
-                    if QuickUnlock():
-                        GoLeft(4700)
-                        GoBack(2000)
-                        GoForward(200)
-                        return True
-                    return False
-                SelectQuest(EOT,resetMove, 10)
-            case "武器材料":
-                def EOT():
-                   BasicQuestSelect("调停",6,False)
-                def resetMove():
-                    GoRight(round((2+(56-32)/60)*1000))
-                    GoForward(round((42-25+34/60)*1000))
-                    GoLeft(round((2+22/60)*1000))
-                    GoForward(round((53-45+24/60)*1000))
-                    GoLeft(round((2+52/60)*1000))
-                    GoForward(round((9)*1000))
-                    GoRight(round((5+18/60)*1000))
-                    GoForward(round((1+20/60)*1000))
-                    GoLeft(round((4+14/60)*1000))
-                    GoForward(6000)
-                    if pos:=CheckIf(ScreenShot(),"保护目标",[[395,61,769,381]]):
-                        DeviceShell(f"input swipe 800 450 {round((pos[0]-800)/3.5+800)} 450")
-                        GoForward(round((3.5+16/60)*1000))
-                        DoubleJump()
-                        GoForward(1000)
-                        unlock = False
-                        for _ in range(5):
-                            if QuickUnlock():
-                                unlock = True
-                                break
-                            else:
-                                GoBack(50)
-                        if unlock:
-                            ResetPosition()
-                            GoLeft(round((4-2/60)*1000))
-                            for i in range(20):
-                                if CheckIf(ScreenShot(), "可前往撤离点"):
-                                    break
-                                else:
-                                    Sleep(5)
-                                if i == 19:
-                                    return False 
-                            for _ in range(10):
-                                scn = ScreenShot()
-                                if not CheckIfInDungeon(scn):
-                                    return False
-                                ResetPosition()
-                                Sleep(3)
-                                scn = ScreenShot()
-                                if CheckIf(scn,"调停_A", [[0,535,544,899-535]]) or CheckIf(scn,"调停_A_云", [[0,535,544,899-535]]):
-                                    GoRight(round((3-2/60)*1000))
-                                    GoForward(round((2+30/60)*1000))
-                                    GoRight(round((4-56/60)*1000))
-                                    GoBack(round((4-4/60)*1000))
-                                    GoRight(round((4-12/60)*1000))
-                                    GoForward(round((9+44/60)*1000))
-                                    GoRight(round((9-14/60)*1000))
-                                    continue
-                                if CheckIf(scn,"调停_B", [[0,535,544,899-535]]) or CheckIf(scn,"调停_B_云", [[0,535,544,899-535]]):
-                                    GoForward(round((1+40/60)*1000))
-                                    GoRight(round((14-36/60)*1000))
-                                    GoForward(round((6+24/60)*1000))
-                                    GoLeft(round((4-24/60)*1000))
-                                    GoForward(round((8-10/60)*1000))
-                                    GoForward(round((14-4/60)*1000))
-                                    return True
-                    return False
-                SelectQuest(EOT,resetMove, 1)  
         setting._FINISHINGCALLBACK()
         return
     def Farm(set:FarmConfig):
@@ -1246,9 +1330,6 @@ def Factory():
         
         ResetADBDevice()
 
-        quest = LoadQuest(setting._FARMTARGET)
-        if quest:
-            QuestFarm()
-        else:
-            setting._FINISHINGCALLBACK()
+        QuestFarm()
+
     return Farm

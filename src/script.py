@@ -44,7 +44,8 @@ CONFIG_VAR_LIST = [
             ["round_custom_time_var",       tk.IntVar,     "_ROUND_CUSTOM_TIME",         3],
             ["cast_q_var",                  tk.BooleanVar, "_CAST_Q_ABILITY",            False],
             ["cast_Q_intervel_var",         tk.IntVar,     "_CAST_Q_INTERVAL",           25],
-            ["cast_e_print_var",            tk.BooleanVar, "_CAST_E_PRINT",              False]
+            ["cast_e_print_var",            tk.BooleanVar, "_CAST_E_PRINT",              False],
+            ["cast_Q_once_var",             tk.BooleanVar, "_CAST_Q_ONCE",              False]
             ]
 
 class FarmConfig:
@@ -83,6 +84,7 @@ class RuntimeContext:
     _ZOOMWORLDMAP = False
     _CRASHCOUNTER = 0
     _IMPORTANTINFO = ""
+    _CASTED_Q = False
 class FarmQuest:
     _DUNGWAITTIMEOUT = 0
     _TARGETINFOLIST = None
@@ -723,7 +725,8 @@ def Factory():
                 Press(pos)
             Sleep(2)
             return True
-        except:
+        except Exception as e:
+            logger.info(e)
             return False
     def GoLeft(time = 1000):
         SPLIT = 3000
@@ -763,7 +766,6 @@ def Factory():
         for _ in range(time):
             Press([1518,631])
             Sleep(1)
-
     def QuitDungeon():
         try:
             FindCoordsOrElseExecuteFallbackAndWait(["任务图标","放弃挑战","放弃挑战_云","再次进行"],[50,40],2)
@@ -779,7 +781,6 @@ def Factory():
                 return
         except:
             return
-
     def CastESpell():
         nonlocal runtimeContext
         if not hasattr(CastESpell, 'last_cast_time'):
@@ -792,7 +793,6 @@ def Factory():
             if time.time() - CastESpell.last_cast_time > setting._CAST_E_INTERVAL:
                 Press([1086,797])
                 CastESpell.last_cast_time = time.time()
-
     def CastQSpell():
         if not hasattr(CastQSpell, 'last_cast_time'):
             CastQSpell.last_cast_time = 0
@@ -808,7 +808,11 @@ def Factory():
                     Sleep(1)
                     Press([1097,658])
                 CastQSpell.last_cast_time = time.time()
-    
+    def CastQOnce():
+        if setting._CAST_Q_ONCE:
+            if not runtimeContext._CASTED_Q:
+                Press([1205,779])
+                Sleep(2)
     def CheckIfInDungeon(scn = None):
         if scn is None:
             scn = ScreenShot()
@@ -818,7 +822,6 @@ def Factory():
             return True
         else:
             return False
-
     def QuickUnlock():
         Sleep(1)
         scn = ScreenShot()
@@ -829,7 +832,6 @@ def Factory():
                 Sleep(2)
                 return True
         return False
-    
     def InverseDistanceWeighting(r,g,b):
         d1 = (r-64)**2+(g-40)**2+(b-18)**2
         d2 = (r-67)**2+(g-79)**2+(b-58)**2
@@ -843,18 +845,29 @@ def Factory():
             return "A"
         else:
             return "B"
+    def AUTOCalibration(roi = [[175,89,1177,719]]):
+        while 1:
+            pos = CheckIf(ScreenShot(),"保护目标",roi) or CheckIf(ScreenShot(),"撤离点",roi)
+            if not pos:
+                logger.info("自动校正取消:不在目标范围内.")
+                return False
+            if abs(pos[0]-800) <= 10:
+                return True 
+            DeviceShell(f"input swipe 800 450 {round((pos[0]-800)/3.5+800)} 450")
+            Sleep(0.5)
     ##################################################################
     def BasicQuestSelect():
         if setting._FARM_TYPE != "夜航手册":
             FindCoordsOrElseExecuteFallbackAndWait("开始挑战",[setting._FARM_TYPE,"input swipe 1400 400 1300 400"],2)
             roi = [50,182+57*(DUNGEON_TARGETS[setting._FARM_TYPE][setting._FARM_LVL]-1),275,57]
-            while 1:
-                scn = ScreenShot()
-                if CheckIf(scn,"开始挑战"):
-                    if Press(CheckIf(scn,"等级未选中",[roi])):
-                        break
+            scn = ScreenShot()
+            if pos:=CheckIf(scn,"开始挑战"):
+                if Press(CheckIf(scn,"等级未选中",[roi])):
+                    Sleep(2)
                 else:
-                    return # 错误. 退出.
+                    Press(pos)
+            else:
+                return # 错误. 退出.
             if setting._FARM_TYPE == "角色材料":
                 if (setting._FARM_EXTRA == "无关心") or (setting._FARM_EXTRA == 2):
                     FindCoordsOrElseExecuteFallbackAndWait("无尽火",[1187,778],1)
@@ -863,9 +876,11 @@ def Factory():
         else:
             FindCoordsOrElseExecuteFallbackAndWait("前往","夜航手册",1)
             lvl = DUNGEON_TARGETS[setting._FARM_TYPE][setting._FARM_LVL]
+            DeviceShell("input swipe 562 210 562 714")
+            Sleep(2)
             Press([562,210+(lvl-1)*84])
             if setting._FARM_EXTRA == "无关心":
-                farm_target = random.sample([1,2,3,4,5])
+                farm_target = random.choice([1,2,3,4])
             else:
                 farm_target = int(setting._FARM_EXTRA)
             if farm_target <= 5:
@@ -885,7 +900,7 @@ def Factory():
 
     def resetMove():
         match setting._FARM_TYPE+setting._FARM_LVL:
-            case "夜航手册40" | "夜航手册55" | "夜航手册60" | "夜航手册70" | "半自动(开核桃)驱离":
+            case "夜航手册40" | "夜航手册55" | "夜航手册60" | "半自动(开核桃)驱离":
                 GoForward(15000)
                 GoBack(1000)
                 GoLeft(100)
@@ -1035,8 +1050,7 @@ def Factory():
                 GoForward(round((1+20/60)*1000))
                 GoLeft(round((4+14/60)*1000))
                 GoForward(6000)
-                if pos:=CheckIf(ScreenShot(),"保护目标",[[395,61,769,381]]):
-                    DeviceShell(f"input swipe 800 450 {round((pos[0]-800)/3.5+800)} 450")
+                if AUTOCalibration([[395,61,769,381]]):
                     GoForward(round((3.5+16/60)*1000))
                     DoubleJump()
                     GoForward(1000)
@@ -1055,6 +1069,7 @@ def Factory():
                             if CheckIf(ScreenShot(), "可前往撤离点"):
                                 break
                             else:
+                                CastQOnce()
                                 CastESpell()
                                 CastQSpell()
                                 Sleep(1)
@@ -1078,14 +1093,15 @@ def Factory():
                                 GoRight(round((9-14/60)*1000))
                                 continue
                             if k == 'B':
-                                GoForward(round((1+40/60)*1000))
-                                GoRight(round((14-36/60)*1000))
+                                GoForward(round((1+20/60)*1000))
+                                GoRight(round((14-56/60)*1000))
                                 GoForward(round((6+24/60)*1000))
-                                GoLeft(round((4-24/60)*1000))
+                                GoLeft(round((4-54/60)*1000))
                                 GoForward(round((8-10/60)*1000))
-                                GoForward(round((20-4/60)*1000))
-                                if CheckIf(ScreenShot(),"再次进行"):
-                                    return True
+                                if AUTOCalibration([[634,394,350,159]]):
+                                    GoForward(round((20-4/60)*1000))
+                                    if CheckIf(ScreenShot(),"再次进行"):
+                                        return True
                                 continue
                 return False
             case _ :
@@ -1243,6 +1259,7 @@ def Factory():
             nonlocal NL_game_counter
             if CheckIfInDungeon(scn):
                 if not NL_game_prepare:
+                    Sleep(1)
                     if resetMove():
                         NL_game_prepare = True
                     else:
@@ -1256,11 +1273,18 @@ def Factory():
                     NL_start_time = time.time()
                     QuitDungeon()
                     return True
+                CastQOnce()
                 CastESpell()
                 CastQSpell()
                 return True
             return False
-
+        @register
+        def handle_cloud_start(scn):
+            if Press(CheckIf(scn,"我知道啦")):
+                return True
+            if Press(CheckIf(scn,"开始游戏_云_登录")):
+                return True
+            return False
         ########################################
 
         check_counter = 0

@@ -1,7 +1,7 @@
 from gui import *
 import argparse
 
-__version__ = '1.0.33' 
+__version__ = '1.0.34' 
 OWNER = "arnold2957"
 REPO = "dnaas"
 # 
@@ -122,7 +122,8 @@ class AppController(tk.Tk):
                     # 控制器处理错误显示
                     if hasattr(self, 'progress_window') and self.progress_window.winfo_exists():
                         self.progress_window.destroy()
-                    messagebox.showerror("错误", value, parent=self.main_window)
+                    logger.error(value)
+                    # messagebox.showerror("错误", value, parent=self.main_window)
 
                 case 'restart_ready':
                     script_path = value

@@ -24,7 +24,7 @@ DUNGEON_TARGETS = {
     "mod强化": {"60":4, "60(测试)":4},
     "开密函": {"驱离":0, "探险无尽":0, "半自动无巧手":0},
     "钓鱼": {"悠闲":0},
-    # "测试": {"测试":0}
+    "迷津": {"测试":0}
     }
 DUNGEON_EXTRA = ["无关心","1","2","3","4","5","6","7","8","9"]
 
@@ -661,19 +661,23 @@ def Factory():
             Sleep()
             restartGame()
             return None # restartGame会抛出异常 所以直接返回none就行了
-    # def FromAToBByC(A,B,C):
-    #     """
-    #     从一个起始状态A向目标状态B进行尝试转化.
-    #     首先会检查屏幕中是否存在B, 然后检查是否存在A, 当满足A存在的时候, 进行C操作.
-    #     A可以是一个list, 每个元素之间是或的关系.
-    #     C可以是一个list, 会逐个执行C的每一个元素.
-    #     """
-    #     while 1:
-    #         for _ in range(runtimeContext._MAXRETRYLIMIT):
-    #             if setting._FORCESTOPING.is_set():
-    #                 return None
-    #             scn = ScreenShot()
-    #             if not CheckIf()
+    def FromAToBByC(A,B,C, verify_time=2, wait_time = 1):
+        scn = ScreenShot()
+        if CheckIf(scn, B):
+            return True
+
+        if A():
+            Sleep(verify_time) 
+
+            scn = ScreenShot()
+            if not A():
+                logger.debug("二次验证未通过, 跳过")
+                return False # ABORTED_UNSTABLE_A
+        
+            FindCoordsOrElseExecuteFallbackAndWait(B, C, wait_time)
+            
+            return False # ERROR_TIMEOUT_WAITING_B
+        return False # ERROR_NOT_IN_START_STATE
     def BasicStateList(always_do_before, check_list, normal_quit, always_do_after, alarm_list):
         counter = 0
         while True:
@@ -943,6 +947,15 @@ def Factory():
             Sleep(0.5)
         return False
     def AUTOCalibration_P(tar_p, tar_s = None, roi = None):
+        """
+        进行自动校准. P代表校准到一个特定的位置(p).
+        tar_p: 目标符号想要前往的像素坐标.
+        tar_s: 目标符号的特殊声明. 如果该参数为none, 则默认为保护目标(黄点)或撤离点(绿点).
+        roi: 我们关心的图片区域. 不在这个区域中的内容一律忽略. None意味着我们使用全部的区域.
+        """
+        if tar_p[1] >= 595:
+            if not AUTOCalibration_P([tar_p[0], 450], tar_s,roi):
+                return False
         if roi == None:
             roi = [[175,89,1177,719]]
         for iter in range(50):
@@ -955,15 +968,10 @@ def Factory():
                 pos = CheckIf(scn,tar_s,roi)
             if pos:
                 delta = [round((pos[0]-tar_p[0])), round((pos[1]-tar_p[1]))]
-                # logger.info(f"{pos} {tar} {delta}")
                 if (abs(delta[0]) <= 5) and (abs(delta[1]) <= 5):
                     return True
-                delta[0] = delta[0]/abs(delta[0]) * round(100 * abs(delta[0]) / (100 + abs(delta[0]))) if delta[0]>=10 else delta[0]//2
-                delta[1] = delta[1]/abs(delta[1]) * round(100 * abs(delta[1]) / (100 + abs(delta[1]))) if delta[1]>=10 else delta[1]//2
-                if pos[1] > 600:
-                    delta[1]+=3
-                    if iter == 0:
-                        delta[1] = round((pos[1]-450))
+                delta[0] = int(delta[0]/1.4)
+                delta[1] = int(delta[1]/2)
                 DeviceShell(f"input swipe 800 450 {delta[0]+800} {delta[1]+450}")
                 Sleep(0.5)
         return False
@@ -973,6 +981,10 @@ def Factory():
             logger.info("错误: 开密函模式无法自动选择任务. 取消执行.")
             setting._FORCESTOPING.set()
             return
+        elif setting._FARM_TYPE == "迷津":
+            FindCoordsOrElseExecuteFallbackAndWait("迷津",[88,407],1)
+            FindCoordsOrElseExecuteFallbackAndWait("肉鸽_堕入深渊","肉鸽_前往",1)
+            Press(FindCoordsOrElseExecuteFallbackAndWait("肉鸽_开始探索", ["肉鸽_堕入深渊","确定","肉鸽_关闭结算", "肉鸽_结束探索"],1))
         elif setting._FARM_TYPE != "夜航手册":
             FindCoordsOrElseExecuteFallbackAndWait(setting._FARM_TYPE,"input swipe 1400 400 1300 400",1)
             FindCoordsOrElseExecuteFallbackAndWait("开始挑战",setting._FARM_TYPE,2)
@@ -991,7 +1003,7 @@ def Factory():
                     select = int(setting._FARM_EXTRA)
                 logger.info(f"由于额外参数为\"{setting._FARM_EXTRA}\",刷取对象为{mat_elem[select]}")
                 FindCoordsOrElseExecuteFallbackAndWait(mat_elem[select],[1020+83*select,778],1)
-        else:
+        elif setting._FARM_TYPE == "夜航手册":
             FindCoordsOrElseExecuteFallbackAndWait("前往","夜航手册",1)
             lvl = DUNGEON_TARGETS[setting._FARM_TYPE][setting._FARM_LVL]
             DeviceShell("input swipe 562 210 562 714")
@@ -1014,6 +1026,7 @@ def Factory():
                     DeviceShell(f"input swipe 800 555 800 222")
                     Sleep(2)
                     FindCoordsOrElseExecuteFallbackAndWait("确认选择",[1450,228+(farm_target-4-1)*110],1)
+
     def resetMove():
         match setting._FARM_TYPE+setting._FARM_LVL:
             case "夜航手册40" | "夜航手册55" | "夜航手册60":
@@ -1272,7 +1285,7 @@ def Factory():
                     CastSpearRush(3)
                     for iter in range(10):
                         if CheckIf(ScreenShot(),"护送目标前往撤离点"):
-                            if AUTOCalibration_P([800,600]):
+                            if AUTOCalibration_P([800,595]):
                                 CastSpearRush(3,True)
                                 GoBack(2000)
                         if iter >= 5:
@@ -1365,9 +1378,9 @@ def Factory():
                         AUTOCalibration_P([800,450])
                         GoLeft(2300)
                         GoForward(2000)
-                        AUTOCalibration_P([800,600])
+                        AUTOCalibration_P([800,595])
                         CastSpearRush(2,True)
-                        AUTOCalibration_P([800,600])
+                        AUTOCalibration_P([800,595])
                         CastSpearRush(2,True)
                         GoBack(500)
                         DeviceShell("input swipe 1528 450 800 450 500")
@@ -1390,7 +1403,7 @@ def Factory():
 
                     return False
                 ################## 第一个房间
-                if not AUTOCalibration_P([800,600]):
+                if not AUTOCalibration_P([800,595]):
                     return
                 CastSpearRush(4, True)
                 if not AUTOCalibration_P([800,450]):
@@ -1402,11 +1415,11 @@ def Factory():
                 if CheckIf(scn,"保护目标", [[802-50,480-50,100,100]]):
                     logger.info("正对")
                     CastSpearRush(2)
-                    if not AUTOCalibration_P([800,600]):
+                    if not AUTOCalibration_P([800,595]):
                         return
                     CastSpearRush(3, True)
                     GoBack(2000)
-                    if not AUTOCalibration_P([800,600]):
+                    if not AUTOCalibration_P([800,595]):
                         return
                     CastSpearRush(2, True)
                     Sleep(2)
@@ -1416,7 +1429,7 @@ def Factory():
                 elif CheckIf(scn,"保护目标", [[646-50,377-50,100,100]]):
                     logger.info("左上")
                     CastSpearRush(2)
-                    if not AUTOCalibration_P([800,600]):
+                    if not AUTOCalibration_P([800,595]):
                         return
                     CastSpearRush(4)
                     GoBack(2000)
@@ -1428,7 +1441,7 @@ def Factory():
                     DeviceShell("input swipe 800 450 1107 450 500")
                     if CheckIf(ScreenShot(),"保护目标",[[620-50,431-50,100,100]]):
                         logger.info("左上")
-                        if not AUTOCalibration_P([723,600]):
+                        if not AUTOCalibration_P([723,595]):
                             return
                         CastSpearRush(5, True)
                         if not AUTOCalibration_P([800,450]):
@@ -1437,7 +1450,7 @@ def Factory():
                         return saveVIP()
                     else:
                         logger.info("左下")
-                        if not AUTOCalibration_P([882,600]):
+                        if not AUTOCalibration_P([882,595]):
                             return
                         CastSpearRush(3)
                         if not AUTOCalibration_P([800,450]):
@@ -1449,32 +1462,89 @@ def Factory():
 
                 logger.info("不可用的第二个房间.")
                 return False
-            case "测试测试":
+            case "迷津测试":
                 tick_start = time.time()
                 TICK_TIME = 1
                 tick_counter = 0
                 new_battle_reset = False
+                battle_finished = False
+                finish_counter = 0
                 while 1:
                     if time.time() - tick_start < TICK_TIME:
                         Sleep(TICK_TIME-(time.time() - tick_start))
                     tick_start = time.time()
                     tick_counter += 1
                     scn = ScreenShot()
-                    if CheckIf(scn, "肉鸽_战斗", [[1318,69,231,72]]):
+                    if Press(CheckIf(scn, "肉鸽_开始探索")) or Press(CheckIf(scn, "肉鸽_堕入深渊")):
+                        continue
+                    elif Press(CheckIf(scn, "复苏")):
+                        Sleep(3)
+                        continue
+                    elif Press(CheckIf(scn, "肉鸽_进入下一个区域")):
+                        Sleep(2)
+                        continue
+                    elif CheckIf(scn, "肉鸽_战斗", [[1318,69,231,72]]):
+                        battle_finished = False
+                        if CheckIf(scn,"保护目标", [[522,337,201,144]]):
+                            AUTOCalibration_P([800,450])
+                            GoForward(11000)
                         if tick_counter % 10 == 0:
+                            Press([1097,658])
                             DeviceShell(f"input swipe 800 0 800 800 500")
                             DeviceShell(f"input swipe 800 450 800 200 500")
-                        Press([1203,631])
+                        if tick_counter % 10 == 5:
+                            Press([1086,797])
+                        else:
+                            Press([1203,631])
                         new_battle_reset = False
-                    if CheckIf(scn, "肉鸽_选择烛芯", [[1014,838,272,53]]):
+                        battle_finished = False
+                    elif CheckIf(scn, "肉鸽_继续探索", [[1370,62,195,59]]):
+                        if not battle_finished:
+                            Sleep(2)
+                            scn = ScreenShot()
+                            if CheckIf(scn, "肉鸽_继续探索", [[1370,62,195,59]]):
+                                battle_finished = True
+                        elif battle_finished:
+                            if not new_battle_reset:
+                                # ResetPosition()
+                                # DoubleJump()
+                                # Sleep(1)
+                                new_battle_reset = True
+                                # SaveDebugImage()
+                            else:
+                                for stage in ["肉鸽_boss战", "肉鸽_下一个战斗区域","肉鸽_下一个困难战斗区域"]:
+                                    if pos:=CheckIf(scn, stage):
+                                        if Press(CheckIf(scn, "肉鸽_进入下一个区域")):
+                                            break
+                                        if (abs(pos[0]-800)>30) or (abs(pos[1]-450)>30):
+                                            AUTOCalibration_P([800,450],stage)
+                                        if tick_counter % 5 == 0:
+                                            DoubleJump()
+                                        GoForward(1000)
+                                        break
+                    elif CheckIf(scn, "肉鸽_选择烛芯", [[1014,838,272,53]]):
                         Press([766,695])
                         Press([1414,861])
-                    if CheckIf(scn, "肉鸽_继续探索", [[1370,62,195,59]]):
-                        if not new_battle_reset:
-                            ResetPosition()
-                            new_battle_reset = True
-
-
+                    elif Press(CheckIf(scn, "肉鸽_关闭结算")):
+                        Sleep(2)
+                        tick_counter = 0
+                        finish_counter += 1
+                        logger.info(f"已完成{finish_counter}次肉鸽.", extra={"summary": True})
+                        # SaveDebugImage()
+                        pass
+                    elif CheckIf(scn, "肉鸽_额外遗物"):
+                        Press([766,695])
+                        Press([1414,861])
+                    else:
+                        Press([800,858])
+                    if tick_counter >= 3600:
+                        logger.info(f"一个小时了还没打完? 强制结束吧.")
+                        try:
+                            restartGame()
+                            Press([1,1])
+                        except RestartSignal:
+                            pass
+                        return True
             case _ :
                 logger.info("没有设定开场移动. 原地挂机.")
                 return True
@@ -1542,10 +1612,6 @@ def Factory():
                             logger.info(f"不在钓鱼界面.({quit_counter // 10})")
                         quit_counter +=1
                         Sleep(1)
-                        if quit_counter > 150:
-                            logger.info("退出钓鱼.")
-                            setting._FORCESTOPING.set()
-                            return False
                     Press(CheckIf(scn,"悠闲钓鱼_收杆"))
                     Press(CheckIf(scn,"悠闲钓鱼_授鱼以鱼"))
                     if (CheckIf(scn,"悠闲钓鱼_钓到鱼了")) or (CheckIf(scn,"悠闲钓鱼_新图鉴")):

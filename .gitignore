@@ -8,6 +8,7 @@ __pycache__/
 src/__pycache__/
 
 # 本地测试文件
+.venv/*
 log.txt
 config.json
 run.bat

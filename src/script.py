@@ -1605,7 +1605,14 @@ def Factory():
             if setting._FARM_TYPE == "钓鱼":
                 while 1:
                     scn = ScreenShot()
+                    if setting._FORCESTOPING.is_set():
+                        logger.info("检测到停止请求, 结束钓鱼处理.")
+                        return True
                     Press([802,741])
+                    if CheckIf(scn, "悠闲钓鱼_无鱼"):
+                        logger.info("检测到无鱼提示，停止钓鱼。")
+                        setting._FORCESTOPING.set()
+                        return False
                     if (not CheckIfInDungeon(scn)) and (not CheckIf(scn,"悠闲钓鱼_钓到鱼了")) and (not CheckIf(scn,"悠闲钓鱼_新图鉴")):
                         Press([802,741])
                         if quit_counter % 10 == 0:

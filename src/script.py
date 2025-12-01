@@ -72,6 +72,11 @@ class RuntimeContext:
     _START_TIME = time.time()
     _GAME_COUNTER = 0
     _IN_GAME_COUNTER = 1
+    #### 肉鸽
+    _ROUGE_new_battle_reset = False
+    _ROUGE_battle_finished = False
+    _ROUGE_finish_counter = 0
+    _ROUGE_tick_counter = 0
     #### 其他临时参数
     _MAXRETRYLIMIT = 20
     _CASTED_Q = False
@@ -873,11 +878,14 @@ def Factory():
                         CastNothingTodo.last_cast_time = 0
                     if time.time() - CastNothingTodo.last_cast_time > 20:
                         logger.info("呃, 什么都不干可不行, 会被踢出去的.")
-                        Press([1203,631])
-                        Sleep(1)
-                        Press([1097,658])
-                        Sleep(1)
-                        DoubleJump()
+                        for _ in range(3):
+                            random.choice([
+                                lambda: Press([1203,631]),
+                                lambda: Press([1097,658]), 
+                                lambda: DoubleJump()
+                            ])()
+                            Sleep(1)
+
                         CastNothingTodo.last_cast_time = time.time()
     def CastSpell():
         CastNothingTodo()
@@ -1463,88 +1471,8 @@ def Factory():
                 logger.info("不可用的第二个房间.")
                 return False
             case "迷津测试":
-                tick_start = time.time()
-                TICK_TIME = 1
-                tick_counter = 0
-                new_battle_reset = False
-                battle_finished = False
-                finish_counter = 0
-                while 1:
-                    if time.time() - tick_start < TICK_TIME:
-                        Sleep(TICK_TIME-(time.time() - tick_start))
-                    tick_start = time.time()
-                    tick_counter += 1
-                    scn = ScreenShot()
-                    if Press(CheckIf(scn, "肉鸽_开始探索")) or Press(CheckIf(scn, "肉鸽_堕入深渊")):
-                        continue
-                    elif Press(CheckIf(scn, "复苏")):
-                        Sleep(3)
-                        continue
-                    elif Press(CheckIf(scn, "肉鸽_进入下一个区域")):
-                        Sleep(2)
-                        continue
-                    elif CheckIf(scn, "肉鸽_战斗", [[1318,69,231,72]]):
-                        battle_finished = False
-                        if CheckIf(scn,"保护目标", [[522,337,201,144]]):
-                            AUTOCalibration_P([800,450])
-                            GoForward(11000)
-                        if tick_counter % 10 == 0:
-                            Press([1097,658])
-                            DeviceShell(f"input swipe 800 0 800 800 500")
-                            DeviceShell(f"input swipe 800 450 800 200 500")
-                        if tick_counter % 10 == 5:
-                            Press([1086,797])
-                        else:
-                            Press([1203,631])
-                        new_battle_reset = False
-                        battle_finished = False
-                    elif CheckIf(scn, "肉鸽_继续探索", [[1370,62,195,59]]):
-                        if not battle_finished:
-                            Sleep(2)
-                            scn = ScreenShot()
-                            if CheckIf(scn, "肉鸽_继续探索", [[1370,62,195,59]]):
-                                battle_finished = True
-                        elif battle_finished:
-                            if not new_battle_reset:
-                                # ResetPosition()
-                                # DoubleJump()
-                                # Sleep(1)
-                                new_battle_reset = True
-                                # SaveDebugImage()
-                            else:
-                                for stage in ["肉鸽_boss战", "肉鸽_下一个战斗区域","肉鸽_下一个困难战斗区域"]:
-                                    if pos:=CheckIf(scn, stage):
-                                        if Press(CheckIf(scn, "肉鸽_进入下一个区域")):
-                                            break
-                                        if (abs(pos[0]-800)>30) or (abs(pos[1]-450)>30):
-                                            AUTOCalibration_P([800,450],stage)
-                                        if tick_counter % 5 == 0:
-                                            DoubleJump()
-                                        GoForward(1000)
-                                        break
-                    elif CheckIf(scn, "肉鸽_选择烛芯", [[1014,838,272,53]]):
-                        Press([766,695])
-                        Press([1414,861])
-                    elif Press(CheckIf(scn, "肉鸽_关闭结算")):
-                        Sleep(2)
-                        tick_counter = 0
-                        finish_counter += 1
-                        logger.info(f"已完成{finish_counter}次肉鸽.", extra={"summary": True})
-                        # SaveDebugImage()
-                        pass
-                    elif CheckIf(scn, "肉鸽_额外遗物"):
-                        Press([766,695])
-                        Press([1414,861])
-                    else:
-                        Press([800,858])
-                    if tick_counter >= 3600:
-                        logger.info(f"一个小时了还没打完? 强制结束吧.")
-                        try:
-                            restartGame()
-                            Press([1,1])
-                        except RestartSignal:
-                            pass
-                        return True
+                logger.info("不对, 你怎么能运行这个??")
+                return True
             case _ :
                 logger.info("没有设定开场移动. 原地挂机.")
                 return True
@@ -1579,25 +1507,31 @@ def Factory():
 
         ########################################
         handlers = []
-        def register(func):
-            handlers.append(func)
-            return func
+        handlers_rouge = []
+        def register(list_type='all'):
+            def decorator(func):
+                if list_type == 'normal' or list_type == 'all':
+                    handlers.append(func)
+                if list_type == 'rouge' or list_type == 'all':
+                    handlers_rouge.append(func)
+                return func
+            return decorator
 
-        @register
+        @register()
         def handle_relogin(scn):
             if Press(CheckIf(scn,"重新连接")):
                 logger.info("重新连接.")
                 Sleep(1)
                 return True
             return False
-        @register
+        @register()
         def handle_login(scn):
             if Press(CheckIf(scn, "点击进入游戏")) or Press(CheckIf(scn, "点击进入游戏_云")):
                 logger.info("点击进入游戏.")
                 Sleep(20)
                 return True
             return False
-        @register
+        @register('normal')
         def handle_fishing(scn):
             counter = 0
             quit_counter = 0
@@ -1620,21 +1554,21 @@ def Factory():
                         Sleep(3)
                         counter+=1
                         logger.info(f"钓到了{counter}条鱼, 累计用时{(time.time()-t):.2f}秒.", extra={"summary": True})                    
-        @register
+        @register('normal')
         def handle_dig(scn):
             if CheckIf(scn,"勘察", [[57,279,43,24]]):
                 logger.info("检测到勘察任务, 强制结束.")
                 setting._FORCESTOPING.set()
                 return True
             return False
-        @register
+        @register('normal')
         def handle_coop_accept(scn):
             if Press(CheckIf(scn,"多人联机_同意", [[1514,67,64,64]])):
                 logger.info("检测到多人联机的请求, 同意请求.")
                 setting._FORCESTOPING.set()
                 return True
             return False
-        @register
+        @register()
         def handle_menu(scn):
             if CheckIf(scn, "任务图标"):
                 logger.info("任务菜单.")
@@ -1642,20 +1576,20 @@ def Factory():
                 Sleep(2)
                 return True
             return False
-        @register
+        @register()
         def handle_quest(scn):
             if Press(CheckIf(scn, "历练")):
                 logger.info("历练.")
                 Sleep(1)
                 return True
             return False
-        @register
+        @register()
         def handle_farm(scn):
             if CheckIf(scn,"入门指南"):
                 FindCoordsOrElseExecuteFallbackAndWait("委托",[89,231],1)
                 return True
             return False
-        @register
+        @register()
         def handle_dungeon_select(scn):
             if CheckIf(scn,"勘察无尽"):
                 logger.info("关卡选择.")
@@ -1666,7 +1600,7 @@ def Factory():
                     return False
                 return True
             return False
-        @register
+        @register('normal')
         def handle_start_dungeon(scn):
             if pos:=(CheckIf(scn, "开始挑战")):
                 logger.info("开始挑战!")
@@ -1681,7 +1615,7 @@ def Factory():
                 Sleep(2)
                 return True
             return False
-        @register
+        @register('normal')
         def handle_confirm_and_select_letter(scn):
             if (find_nuts:=CheckIf(scn, "选择密函")) or (CheckIf(scn, "确认选择")):
                 if find_nuts:
@@ -1692,12 +1626,12 @@ def Factory():
                 Press(CheckIf(scn,"确认选择"))
                 return True
             return False
-        @register
+        @register()
         def handle_rez(scn):
             if Press(CheckIf(scn, "复苏")):
                 return True
             return False
-        @register
+        @register()
         def handle_monthly_sub(scn):
             now = datetime.now()
             seconds_since_midnight = (now - now.replace(hour=0, minute=0, second=0, microsecond=0)).total_seconds()
@@ -1706,7 +1640,7 @@ def Factory():
                     logger.info("已领取小月卡.")
                     return True
             return False
-        @register
+        @register('normal')
         def handle_countinue_in_game(scn):
             nonlocal runtimeContext
             if (CheckIf(scn, "继续挑战")):
@@ -1732,7 +1666,7 @@ def Factory():
                     Sleep(2)
                 return True
             return False
-        @register
+        @register()
         def handle_continue(scn):
             nonlocal runtimeContext
             if pos:=(CheckIf(scn, "再次进行")):
@@ -1748,7 +1682,7 @@ def Factory():
                     runtimeContext._START_TIME = time.time()
                 return True
             return False
-        @register
+        @register('normal')
         def handle_in_dungeon(scn):
             nonlocal runtimeContext
             if CheckIfInDungeon(scn):
@@ -1770,14 +1704,147 @@ def Factory():
                 CastSpell()
                 return True
             return False
-        @register
+        @register()
         def handle_cloud_start(scn):
-            if Press(CheckIf(scn,"我知道啦")):
+            if pos:=CheckIf(scn,"上次登录"):
+                Press([200,pos[1]])
+                return True
+            if Press(CheckIf(scn,"我知道啦")) or Press(CheckIf(scn,"我知道啦_2")):
                 return True
             if Press(CheckIf(scn,"开始游戏_云_登录")):
                 return True
+            if Press(CheckIf(scn,"退出游戏")):
+                return True
+            return False
+        @register('rouge')
+        def handle_rouge_enter(scn):
+            if Press(CheckIf(scn, "肉鸽_开始探索")) or Press(CheckIf(scn, "肉鸽_堕入深渊")):
+                return True
+            if Press(CheckIf(scn, "肉鸽_进入下一个区域")):
+                Sleep(2)
+                return True
+            return False
+        @register('rouge')
+        def handle_rouge_RESTART(scn):
+            if runtimeContext._ROUGE_tick_counter > 3600:
+                runtimeContext._ROUGE_tick_counter = 0
+                logger.info("时间太久了, 重来吧")
+                runtimeContext._START_TIME = time.time()
+                restartGame()
+                return True
+        @register('rouge')
+        def handle_rouge_battle(scn):
+            if CheckIf(scn, "肉鸽_战斗", [[1318,69,231,72]]):
+                runtimeContext._ROUGE_battle_finished = False
+                runtimeContext._ROUGE_tick_counter += 1
+                if CheckIf(scn,"保护目标", [[522,337,201,144]]):
+                    AUTOCalibration_P([800,450])
+                    GoForward(11000)
+                if runtimeContext._ROUGE_tick_counter % 7 == 0:
+                    Press([1097,658])
+                    DeviceShell(f"input swipe 800 0 800 800 500")
+                    DeviceShell(f"input swipe 800 450 800 200 500")
+                if runtimeContext._ROUGE_tick_counter % 3 == 0:
+                    Press([1086,797])
+                else:
+                    Press([1203,631])
+                    Sleep(1)
+                    Press([1203,631])
+                runtimeContext._ROUGE_new_battle_reset = False
+                runtimeContext._ROUGE_battle_finished = False
+                return True
+            return False
+        @register('rouge')
+        def handle_rouge_explore(scn):
+            if CheckIf(scn, "肉鸽_继续探索", [[1370,62,195,59]]):
+                runtimeContext._ROUGE_tick_counter+=1
+                if not runtimeContext._ROUGE_battle_finished:
+                    Sleep(2)
+                    scn = ScreenShot()
+                    if CheckIf(scn, "肉鸽_继续探索", [[1370,62,195,59]]):
+                        runtimeContext._ROUGE_battle_finished = True
+                elif runtimeContext._ROUGE_battle_finished:
+                    if not runtimeContext._ROUGE_new_battle_reset:
+                        # ResetPosition()
+                        # DoubleJump()
+                        # Sleep(1)
+                        runtimeContext._ROUGE_new_battle_reset = True
+                        # SaveDebugImage()
+                    else:
+                        for stage in ["肉鸽_boss战", "肉鸽_下一个战斗区域","肉鸽_下一个困难战斗区域"]:
+                            if pos:=CheckIf(scn, stage):
+                                if Press(CheckIf(scn, "肉鸽_进入下一个区域")) or Press(CheckIf(scn,"肉鸽_休整按钮")):
+                                    break
+                                if (abs(pos[0]-800)>30) or (abs(pos[1]-450)>30):
+                                    AUTOCalibration_P([800,450],stage)
+                                if runtimeContext._ROUGE_tick_counter % 5 == 0:
+                                    DoubleJump()
+                                GoForward(1000)
+                                screen = ScreenShot()
+                                if Press(CheckIf(screen, "肉鸽_进入下一个区域")) or Press(CheckIf(screen,"肉鸽_休整按钮")):
+                                    break
+                                break
+                return True
+            return False
+        @register('rouge')
+        def handle_rouge_rest(scn):
+            locals_dict = locals()
+            if '_has_forwarded' not in locals_dict:
+                locals_dict['_has_forwarded'] = False
+
+            if Press(CheckIf(scn,"肉鸽_休整按钮")):
+                return True
+            if CheckIf(scn, "肉鸽_休整", [[1370,62,195,59]]):
+                if not locals_dict['_has_forwarded']:
+                    GoForward(5000)
+                    locals_dict['_has_forwarded'] = True
+                for stage in ["肉鸽_boss战", "肉鸽_下一个战斗区域","肉鸽_下一个困难战斗区域"]:
+                    if pos:=CheckIf(scn, stage):
+                        if Press(CheckIf(scn, "肉鸽_进入下一个区域")):
+                            locals_dict['_has_forwarded'] = False
+                            break
+                        if (abs(pos[0]-800)>30) or (abs(pos[1]-450)>30):
+                            AUTOCalibration_P([800,450],stage)
+                        if runtimeContext._ROUGE_tick_counter % 5 == 0:
+                            DoubleJump()
+                        GoForward(1000)
+                        if Press(CheckIf(ScreenShot(), "肉鸽_进入下一个区域")):
+                            locals_dict['_has_forwarded'] = False
+                            break
+                        break
+
+        @register('rouge')
+        def handle_rouge_relic(scn):
+            if CheckIf(scn, "肉鸽_选择烛芯", [[1014,838,272,53]]):
+                Press([766,695])
+                Press([1414,861])
+                return True
+            return False
+        @register('rouge')
+        def handle_rouge_finishing(scn):
+            if Press(CheckIf(scn, "肉鸽_关闭结算")):
+                Sleep(2)
+                runtimeContext._ROUGE_tick_counter = 0
+                runtimeContext._ROUGE_finish_counter += 1
+                logger.info(f"已完成{runtimeContext._ROUGE_finish_counter}次肉鸽.", extra={"summary": True})
+                pass
+        @register('rouge')
+        def handle_rouge_begining_relic(scn):
+            if CheckIf(scn, "肉鸽_额外遗物"):
+                Press([500,425])
+                Press([1414,861])
+                return True
+            return False
+        @register('rouge')
+        def handle_rouge_stack(scn):
+            Press([800,858])
             return False
         ########################################
+        if setting._FARM_TYPE+setting._FARM_LVL == "迷津测试":
+            logger.info("使用肉鸽模式.")
+            active_handlers = handlers_rouge
+        else:
+            active_handlers = handlers
 
         check_counter = 0
         round_time = time.time()
@@ -1789,7 +1856,7 @@ def Factory():
             scn = ScreenShot()
 
             handled_scene = False
-            for handler in handlers:
+            for handler in active_handlers:
                 if handler(scn):
                     handled_scene = True
                     break

@@ -2,7 +2,7 @@
 
 ## About
 
-This is an English translation of the DNAAS (Double Helix Auto Monster Grinder) automation script.
+This is an English translation of the DNAAS automation script.
 
 **Credits:** This project is based on the original Chinese version available at [https://github.com/arnold2957/dnaas](https://github.com/arnold2957/dnaas)
 
@@ -65,5 +65,6 @@ If it won't start, it's definitely a problem with the emulator path; check it ca
 GPL-3.0 License (same as original project)
 
 ## Disclaimer
+
 
 This is an automation tool for the game "Double Helix". Use at your own risk. The original developers are not responsible for any consequences of using this software.

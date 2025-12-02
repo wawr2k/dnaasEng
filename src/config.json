@@ -1,0 +1,20 @@
+{
+    "_FARM_TYPE": "Weapon Breakthrough",
+    "_FARM_LVL": "70",
+    "_FARM_EXTRA": "No Concern",
+    "_EMUPATH": "E:/Games/MuMuPlayerGlobal-12.0/nx_device/12.0/shell/MuMuNxDevice.exe",
+    "_ADBPORT": "16384",
+    "LAST_VERSION": "1.0.35",
+    "LATEST_VERSION": "1.0.36",
+    "_CAST_E_ABILITY": false,
+    "_CAST_E_INTERVAL": 7,
+    "_RESTART_INTERVAL": 2000,
+    "_GREEN_BOOK": false,
+    "_GREEN_BOOK_FINAL": false,
+    "_ROUND_CUSTOM_ACTIVE": false,
+    "_ROUND_CUSTOM_TIME": 3,
+    "_CAST_Q_ABILITY": true,
+    "_CAST_Q_INTERVAL": 25,
+    "_CAST_E_PRINT": false,
+    "_CAST_Q_ONCE": false
+}

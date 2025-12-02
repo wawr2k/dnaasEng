@@ -1,78 +1,69 @@
-# DNAAS - 二重螺旋自动刷怪
+# DNAAS - Double Helix Auto Monster Grinder
 
-## 脚本功能相关
-### DNAAS的优势是什么?
-专为🕒24小时挂机打造, 支持↻重启游戏, 🤖自动进本.  
-后台挂机✅, 多开✅, 无头模式✅.  
+## About
 
-### 现在支持哪些地图？
-#### 皎皎币
-60皎皎币，70皎皎币。  
-60皎皎币会刷四张地图中的两张，也就是第一次复位以后没有水的那张地图。  
-70皎皎币会刷三张地图中的两张，也就是65mod同款地图，和电梯图复位后目标地点在正前方的地图。  
-#### 夜航手册(mod本)
-40, 50, 55, 60, 65, 70 mod本.  
-额外参数指的是从上往下第几个mod本. 无关心会从1-4里随机选择一个.
-#### 人物经验
-50级. 请务必装备上"磐石"魔之楔.  
-#### 突破材料(密函)
-10级, 30级, 60级. 通过额外参数来指定哪一个属性: 1-6对应水火风雷光暗, 无关心对应火.  
-10火只支持那张和机关在同一个楼层的, 另一张地图不能刷.  
-60火和30火共用一个任务.  
-#### 武器突破
-60级和70级的武器突破.  
-请务必装备上"磐石"魔之楔.  
-由于该任务的持续时间较长, 存在大量的偶发问题, 请尽可能使用云游戏.  
+This is an English translation of the DNAAS (Double Helix Auto Monster Grinder) automation script.
 
-### 可以开密函吗/没有巧手怎么办?
-可以的.  
-可以开驱离和全自动探险.  
-全自动探险只会刷10级火材料的同款地图.  如果当前不存在这张地图, 请切换至半自动.
-没有巧手请使用半自动.
+**Credits:** This project is based on the original Chinese version available at [https://github.com/arnold2957/dnaas](https://github.com/arnold2957/dnaas)
 
-### 自定义轮数指的是什么？/为什么我打了好几轮?
-自定义轮数是一局游戏内的小局次数。脚本本身是无限运行的。
+## Features
 
-如果你勾选了自定义轮数, 那么会按照自定义轮数设置的数量进行战斗.
+- 🕒 24-hour unattended operation with automatic game restarting
+- 🤖 Automatic dungeon entry
+- ✅ Background operation, multi-instance support, headless mode
+- ↻ Automatic game restart and recovery
 
-### 跑不到位置怎么办？
-去购买一个磐石魔之楔。  
-所有路线都是用成女的体型跑的, 请尽量使用成女.  
-当然, 你也可以[提交](https://github.com/arnold2957/dnaas/issues/new)你遇到的问题.
+## Getting Started
 
-### 卡怪怎么办？
-去练一个军团长[西比尔]，然后主控军团长，让水母带回蓝刀[追忆的残影]。 西比尔拉满[技能范围], 回蓝刀拉满[暴击率]相关. 这两个都是常驻刷取, 现在就刷起来吧!  
-或者使用2命赛琪, 尽可能拉高效益和耐久, 或配1-2个治疗.
+For detailed requirements, supported maps, and complete setup instructions, please visit the original repository: [https://github.com/arnold2957/dnaas](https://github.com/arnold2957/dnaas)
 
-## 模拟器和脚本的设置
-请按照以下步骤：
-- 下载mumu模拟器, mumu12或者mumuX都可以. 或者雷电模拟器也可以.
-- 设置模拟器分辨率为1600×900。
-- 打开adb调试。
-- 关闭自动桥接。
-- 模拟器性能开到最高。（云游戏可以忽略）
-- 游戏内画质调整到最低。
-- 人群密度调整到最高。
-- 进入副本后, 启动脚本.
+## Emulator and Script Settings
 
-### 模拟器路径是什么/脚本启动以后报错？
-- 脚本左上角的"模拟器路径"为: 
-  - MuMuX: Netease\MuMu Player 12\nx_device\12.0\shell\MuMuNxDevice.exe 
-  - MuMu12类似
-- 端口号为5555或16384. 如果都不可以, 你可以在多开管理器里找到adb端口号. 
+Please follow these steps:
 
-启动不了一定是模拟器路径的问题，多找一找。 
+1. You can download the MuMu emulator, either MuMu12 or MuMuX. Alternatively, you can use the LDPlayer emulator.
 
-### 雷电或者其他模拟器能用吗？
-可以的. 雷电模拟器请尝试使用adb.exe, 并将端口号设置为5555.
+2. Set the emulator resolution to 1600×900.
 
-### 脚本说找不到xx然后结束了？
-本脚本有自动截图功能，你可以把截图和log[发给我](https://github.com/arnold2957/dnaas/issues/new)。
+3. Enable adb debugging.
 
-## 代码和开源
-大部分内容都是和[wvdas](https://github.com/arnold2957/wvd/)一样的. 请不要拿去倒卖!
+4. Turn off automatic bridging.
 
-## 我想要赞助这个项目
-非常感谢你的支持!
-你可以访问爱发电来为项目提供赞助: [爱发电](https://afdian.com/a/dellyla)
+5. Set the emulator to maximum performance. (This can be ignored for cloud gaming.)
 
+6. Set the in-game graphics settings to the lowest level.
+
+7. Population density adjusted to the highest level.
+
+8. Once inside the instance, start the script.
+
+### What is the emulator path? / The script is throwing an error after starting.
+
+- The "emulator path" in the top left corner of the script is:
+  - MuMuX: `Netease\MuMu Player 12\nx_device\12.0\shell\MuMuNxDevice.exe`
+  - Similar to MuMu12
+
+- The port number is 5555 or 16384. If neither works, you can find the adb port number in the multi-instance manager.
+
+If it won't start, it's definitely a problem with the emulator path; check it carefully.
+
+## Installation
+
+1. Clone or download this repository
+2. Install requirements: `pip install -r requirements.txt`
+3. Run the script: `python src/main.py`
+
+## Usage
+
+1. Configure your emulator path and settings
+2. Select your desired dungeon/map
+3. Start the script
+4. The script will run automatically in the background
+
+## License
+
+GPL-3.0 License (same as original project)
+
+## Disclaimer
+
+This is an automation tool for the game "Double Helix". Use at your own risk. The original developers are not responsible for any consequences of using this software.

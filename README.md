@@ -1,4 +1,4 @@
-# DNAAS - Double Helix Auto Monster Grinder
+# DNAAS - Double Helix
 
 ## About
 
@@ -68,3 +68,4 @@ GPL-3.0 License (same as original project)
 
 
 This is an automation tool for the game "Double Helix". Use at your own risk. The original developers are not responsible for any consequences of using this software.
+
